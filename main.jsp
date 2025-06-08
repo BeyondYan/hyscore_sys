@@ -1,82 +1,105 @@
 <%@ page language="java" contentType="text/html; charset=UTF-8" pageEncoding="UTF-8"%>
+<%@ page import="java.sql.*, java.util.*" %>
+<%@ page import="utils.DBUtil" %>
 <%
     String username = (String) session.getAttribute("username");
     String role = (String) session.getAttribute("role");
-
+    String studentId = (String) session.getAttribute("student_id");
     if (username == null || role == null) {
         response.sendRedirect("login.jsp");
         return;
     }
+
+    String keyword = request.getParameter("keyword");
+    String sql = "";
+    Connection conn = DBUtil.getConnection();
+    PreparedStatement ps = null;
+    ResultSet rs = null;
 %>
-<!DOCTYPE html>
+
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>系统首页</title>
+    <title>主页 - 信息系统</title>
     <style>
-        body {
-            background-color: #f4f6f8;
-            font-family: "Segoe UI", sans-serif;
-        }
-        .container {
-            max-width: 600px;
-            margin: 60px auto;
-            padding: 30px;
-            background-color: white;
-            border-radius: 10px;
-            box-shadow: 0 0 10px rgba(0,0,0,0.1);
-        }
-        h2, h3 {
-            text-align: center;
-            color: #333;
-        }
-        ul {
-            list-style: none;
-            padding: 0;
-        }
-        li {
-            margin: 15px 0;
-            text-align: center;
-        }
-        a {
-            text-decoration: none;
-            color: #007bff;
-            font-weight: bold;
-        }
-        a:hover {
-            text-decoration: underline;
-        }
-        .footer {
-            text-align: center;
-            margin-top: 30px;
-        }
+        body { font-family: Arial; background: #f0f2f5; padding: 20px; }
+        .container { background: #fff; padding: 20px; border-radius: 8px; width: 90%; margin: auto; }
+        h2 { text-align: center; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { padding: 10px; border: 1px solid #ccc; text-align: center; }
+        form { margin-top: 20px; text-align: center; }
+        input[type="text"] { padding: 5px; width: 200px; }
+        input[type="submit"] { padding: 5px 10px; }
+        .admin-ops a { margin: 0 5px; color: blue; text-decoration: none; }
     </style>
 </head>
 <body>
 <div class="container">
-    <h2>欢迎，<%= username %>！</h2>
-    <hr/>
+    <h2>欢迎，<%= username %>（<%= role %>）</h2>
+    <form method="post">
+        <% if ("student".equals(role)) { %>
+            按科目查询成绩：
+            <input type="text" name="keyword" placeholder="如 数学" />
+            <input type="submit" value="搜索" />
+        <% } else if ("admin".equals(role)) { %>
+            按学号或科目查询成绩：
+            <input type="text" name="keyword" placeholder="学号 或 科目名" />
+            <input type="submit" value="搜索" />
+        <% } %>
+    </form>
 
-    <% if ("admin".equals(role)) { %>
-        <h3>管理员功能区</h3>
-        <ul>
-            <li><a href="view_all_scores.jsp">查看所有学生成绩</a></li>
-            <li><a href="add_score.jsp">添加学生成绩</a></li>
-            <li><a href="manage_students.jsp">管理学生信息</a></li>
-        </ul>
-    <% } else if ("student".equals(role)) { %>
-        <h3>学生功能区</h3>
-        <ul>
-            <li><a href="view_my_score.jsp">查看我的成绩</a></li>
-        </ul>
-    <% } else { %>
-        <p>未知身份，无法加载功能</p>
-    <% } %>
+    <table>
+        <tr>
+            <th>ID</th>
+            <th>学号</th>
+            <th>姓名</th>
+            <th>科目</th>
+            <th>成绩</th>
+            <% if ("admin".equals(role)) { %><th>操作</th><% } %>
+        </tr>
+        <%
+            if ("student".equals(role)) {
+                if (keyword == null || keyword.trim().equals("")) {
+                    sql = "SELECT * FROM scores WHERE student_id=?";
+                    ps = conn.prepareStatement(sql);
+                    ps.setString(1, studentId);
+                } else {
+                    sql = "SELECT * FROM scores WHERE student_id=? AND subject_name LIKE ?";
+                    ps = conn.prepareStatement(sql);
+                    ps.setString(1, studentId);
+                    ps.setString(2, "%" + keyword + "%");
+                }
+            } else if ("admin".equals(role)) {
+                if (keyword == null || keyword.trim().equals("")) {
+                    sql = "SELECT * FROM scores";
+                    ps = conn.prepareStatement(sql);
+                } else {
+                    sql = "SELECT * FROM scores WHERE student_id=? OR subject_name LIKE ?";
+                    ps = conn.prepareStatement(sql);
+                    ps.setString(1, keyword);
+                    ps.setString(2, "%" + keyword + "%");
+                }
+            }
 
-    <div class="footer">
-        <a href="change_password.jsp">修改密码</a> |
-        <a href="logout.jsp">退出登录</a>
-    </div>
+            rs = ps.executeQuery();
+            while (rs.next()) {
+        %>
+        <tr>
+            <td><%= rs.getInt("id") %></td>
+            <td><%= rs.getString("student_id") %></td>
+            <td><%= rs.getString("student_name") %></td>
+            <td><%= rs.getString("subject_name") %></td>
+            <td><%= rs.getFloat("score") %></td>
+            <% if ("admin".equals(role)) { %>
+                <td class="admin-ops">
+                    <a href="edit_score.jsp?id=<%= rs.getInt("id") %>">修改</a>
+                    <a href="delete_score.jsp?id=<%= rs.getInt("id") %>" onclick="return confirm('确定删除？')">删除</a>
+                </td>
+            <% } %>
+        </tr>
+        <% } %>
+    </table>
+    <% if (ps != null) ps.close(); if (conn != null) conn.close(); %>
 </div>
 </body>
 </html>
